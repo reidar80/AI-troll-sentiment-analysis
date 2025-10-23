@@ -1,0 +1,240 @@
+/**
+ * styles.css - Styles for UI overlays on web pages
+ * Indicators and badges for flagged content
+ */
+
+/* Comment/Post Indicator */
+.troll-detector-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.troll-detector-indicator[data-class="warning"] {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #78350f;
+}
+
+.troll-detector-indicator[data-class="danger"] {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.troll-detector-indicator[data-class="info"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.troll-detector-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.troll-detector-label {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.troll-detector-score {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.troll-detector-indicator:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+/* Profile Badge */
+.troll-detector-profile-badge {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  z-index: 9999;
+  position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  animation: slideIn 0.4s ease-out;
+}
+
+.badge-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.badge-emoji {
+  font-size: 32px;
+  line-height: 1;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.badge-text strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.badge-text small {
+  display: block;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.badge-flags {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.badge-flags li {
+  list-style: none;
+  padding-left: 20px;
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.badge-flags li:last-child {
+  margin-bottom: 0;
+}
+
+.badge-flags li::before {
+  content: "⚠️";
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* Tooltip on hover */
+.troll-detector-indicator::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  margin-bottom: 8px;
+  z-index: 10000;
+  max-width: 300px;
+  white-space: normal;
+}
+
+.troll-detector-indicator:hover::after {
+  opacity: 1;
+}
+
+/* LinkedIn-specific adjustments */
+.feed-shared-update-v2 .troll-detector-indicator {
+  margin-top: 8px;
+}
+
+.comments-comment-item .troll-detector-indicator {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* YouTube-specific adjustments */
+ytd-comment-renderer .troll-detector-indicator {
+  margin-top: 8px;
+}
+
+/* Reddit-specific adjustments */
+[data-test-id="comment"] .troll-detector-indicator {
+  margin-top: 8px;
+}
+
+/* Accessibility */
+.troll-detector-indicator:focus,
+.troll-detector-profile-badge:focus {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .troll-detector-indicator {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .troll-detector-profile-badge {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .troll-detector-indicator {
+    font-size: 11px;
+    padding: 4px 10px;
+    gap: 4px;
+  }
+
+  .troll-detector-emoji {
+    font-size: 14px;
+  }
+
+  .troll-detector-profile-badge {
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .badge-emoji {
+    font-size: 24px;
+  }
+}
+
+/* Print styles - hide indicators when printing */
+@media print {
+  .troll-detector-indicator,
+  .troll-detector-profile-badge {
+    display: none !important;
+  }
+}
