@@ -476,9 +476,9 @@ class TrollDetector {
    * Add visual indicator to a comment/post
    */
   addCommentIndicator(element, analysis) {
-    // Remove existing indicator if present
-    const existing = element.querySelector('.troll-detector-indicator');
-    if (existing) existing.remove();
+    // Remove ALL existing indicators (fixes stacking issue)
+    const existingIndicators = element.querySelectorAll('.troll-detector-indicator');
+    existingIndicators.forEach(indicator => indicator.remove());
 
     const indicator = document.createElement('div');
     indicator.className = 'troll-detector-indicator';
@@ -522,9 +522,9 @@ class TrollDetector {
    * Add clean/safe indicator (green shield)
    */
   addCleanIndicator(element, analysis) {
-    // Remove existing indicator if present
-    const existing = element.querySelector('.troll-detector-indicator');
-    if (existing) existing.remove();
+    // Remove ALL existing indicators (fixes stacking issue)
+    const existingIndicators = element.querySelectorAll('.troll-detector-indicator');
+    existingIndicators.forEach(indicator => indicator.remove());
 
     const indicator = document.createElement('div');
     indicator.className = 'troll-detector-indicator';
