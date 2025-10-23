@@ -100,22 +100,130 @@ class TextAnalysisUtils {
   }
 
   /**
-   * Detect AI-generated buzzwords and corporate jargon
+   * Detect language (simple pattern matching)
+   */
+  static detectLanguage(text) {
+    const lowerText = text.toLowerCase();
+    const tokens = this.tokenize(text);
+
+    const patterns = {
+      no: ['og', 'er', 'jeg', 'det', 'ikke'],
+      de: ['und', 'der', 'die', 'das', 'ist'],
+      es: ['que', 'de', 'el', 'la', 'es'],
+      fr: ['que', 'de', 'le', 'la', 'est'],
+      pt: ['que', 'de', 'o', 'a', 'é'],
+      sv: ['och', 'är', 'jag', 'det', 'inte'],
+      da: ['og', 'er', 'jeg', 'det', 'ikke'],
+      ru: ['и', 'в', 'не', 'на', 'я'],
+      pl: ['i', 'w', 'nie', 'na', 'jest']
+    };
+
+    let maxScore = 0;
+    let detectedLang = 'en';
+
+    for (const [lang, words] of Object.entries(patterns)) {
+      const score = words.filter(w => tokens.includes(w)).length;
+      if (score > maxScore) {
+        maxScore = score;
+        detectedLang = lang;
+      }
+    }
+
+    return maxScore > 0 ? detectedLang : 'en';
+  }
+
+  /**
+   * Detect AI-generated buzzwords and corporate jargon (multilingual)
    * Returns count and list of detected buzzwords
    */
   static detectBuzzwords(text) {
-    const buzzwords = [
-      'synergy', 'synergies', 'leverage', 'leveraging', 'paradigm',
-      'disruptive', 'innovative', 'game-changer', 'revolutionary',
-      'cutting-edge', 'next-generation', 'world-class', 'best-in-class',
-      'transformational', 'empower', 'empowering', 'holistic',
-      'thought leader', 'thought leadership', 'deep dive', 'circle back',
-      'touch base', 'move the needle', 'low-hanging fruit', 'win-win',
-      'value-add', 'deliverables', 'bandwidth', 'ecosystem',
-      'scalable', 'actionable', 'seamless', 'robust', 'optimize',
-      'maximize', 'streamline', 'proactive', 'agile', 'dynamic'
-    ];
+    const lang = this.detectLanguage(text);
 
+    const buzzwordsByLanguage = {
+      en: [
+        'synergy', 'synergies', 'leverage', 'leveraging', 'paradigm',
+        'disruptive', 'innovative', 'game-changer', 'revolutionary',
+        'cutting-edge', 'next-generation', 'world-class', 'best-in-class',
+        'transformational', 'empower', 'empowering', 'holistic',
+        'thought leader', 'thought leadership', 'deep dive', 'circle back',
+        'touch base', 'move the needle', 'low-hanging fruit', 'win-win',
+        'value-add', 'deliverables', 'bandwidth', 'ecosystem',
+        'scalable', 'actionable', 'seamless', 'robust', 'optimize',
+        'maximize', 'streamline', 'proactive', 'agile', 'dynamic'
+      ],
+      no: [
+        'synergi', 'synergier', 'utnytte', 'paradigme', 'disruptiv',
+        'innovativ', 'banebrytende', 'revolusjonerende', 'bærekraftig',
+        'transformasjon', 'bemyndigende', 'helhetlig', 'tankeleder',
+        'verdiøkende', 'leveranse', 'økosystem', 'skalerbar',
+        'sømløs', 'robust', 'optimalisere', 'maksimere', 'strømlinjeforme',
+        'proaktiv', 'smidig', 'dynamisk'
+      ],
+      de: [
+        'synergie', 'synergien', 'hebeln', 'paradigma', 'disruptiv',
+        'innovativ', 'bahnbrechend', 'revolutionär', 'nachhaltig',
+        'transformation', 'ermächtigung', 'ganzheitlich', 'vordenker',
+        'mehrwert', 'liefergegenstand', 'ökosystem', 'skalierbar',
+        'nahtlos', 'robust', 'optimieren', 'maximieren', 'rationalisieren',
+        'proaktiv', 'agil', 'dynamisch'
+      ],
+      es: [
+        'sinergia', 'sinergias', 'apalancamiento', 'paradigma', 'disruptivo',
+        'innovador', 'revolucionario', 'vanguardia', 'sostenible',
+        'transformacional', 'empoderamiento', 'holístico', 'líder de opinión',
+        'valor agregado', 'entregables', 'ecosistema', 'escalable',
+        'sin fisuras', 'robusto', 'optimizar', 'maximizar', 'racionalizar',
+        'proactivo', 'ágil', 'dinámico'
+      ],
+      fr: [
+        'synergie', 'synergies', 'levier', 'paradigme', 'disruptif',
+        'innovant', 'révolutionnaire', 'avant-garde', 'durable',
+        'transformationnel', 'autonomisation', 'holistique', 'leader d\'opinion',
+        'valeur ajoutée', 'livrables', 'écosystème', 'évolutif',
+        'transparent', 'robuste', 'optimiser', 'maximiser', 'rationaliser',
+        'proactif', 'agile', 'dynamique'
+      ],
+      pt: [
+        'sinergia', 'sinergias', 'alavancagem', 'paradigma', 'disruptivo',
+        'inovador', 'revolucionário', 'vanguarda', 'sustentável',
+        'transformacional', 'empoderamento', 'holístico', 'líder de pensamento',
+        'valor agregado', 'entregas', 'ecossistema', 'escalável',
+        'perfeito', 'robusto', 'otimizar', 'maximizar', 'simplificar',
+        'proativo', 'ágil', 'dinâmico'
+      ],
+      sv: [
+        'synergi', 'synergier', 'hävstång', 'paradigm', 'disruptiv',
+        'innovativ', 'banbrytande', 'revolutionerande', 'hållbar',
+        'transformerande', 'bemyndigande', 'holistisk', 'tankeledar',
+        'mervärde', 'leveranser', 'ekosystem', 'skalbar',
+        'sömlös', 'robust', 'optimera', 'maximera', 'effektivisera',
+        'proaktiv', 'smidig', 'dynamisk'
+      ],
+      da: [
+        'synergi', 'synergier', 'løftestang', 'paradigme', 'disruptiv',
+        'innovativ', 'banebrydende', 'revolutionerende', 'bæredygtig',
+        'transformerende', 'bemyndigende', 'holistisk', 'tankeleder',
+        'merværdi', 'leverancer', 'økosystem', 'skalerbar',
+        'problemfri', 'robust', 'optimere', 'maksimere', 'strømline',
+        'proaktiv', 'smidig', 'dynamisk'
+      ],
+      ru: [
+        'синергия', 'рычаг', 'парадигма', 'инновационный', 'прорывной',
+        'революционный', 'передовой', 'устойчивый', 'трансформация',
+        'расширение возможностей', 'целостный', 'лидер мнений',
+        'добавленная стоимость', 'экосистема', 'масштабируемый',
+        'оптимизировать', 'максимизировать', 'проактивный', 'гибкий', 'динамичный'
+      ],
+      pl: [
+        'synergia', 'dźwignia', 'paradygmat', 'innowacyjny', 'przełomowy',
+        'rewolucyjny', 'awangardowy', 'zrównoważony', 'transformacja',
+        'upodmiotowienie', 'holistyczny', 'lider myśli', 'wartość dodana',
+        'ekosystem', 'skalowalny', 'optymalizować', 'maksymalizować',
+        'proaktywny', 'zwinny', 'dynamiczny'
+      ]
+    };
+
+    const buzzwords = buzzwordsByLanguage[lang] || buzzwordsByLanguage.en;
     const lowerText = text.toLowerCase();
     const found = [];
 
@@ -128,7 +236,8 @@ class TextAnalysisUtils {
     return {
       count: found.length,
       buzzwords: found,
-      density: found.length / this.tokenize(text).length
+      density: found.length / this.tokenize(text).length,
+      detectedLanguage: lang
     };
   }
 
