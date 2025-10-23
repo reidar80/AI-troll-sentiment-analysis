@@ -200,7 +200,13 @@ class PopupController {
     controlsSection.style.display = 'block';
 
     // Show/hide stats based on whether we have data
-    if (!this.results || !this.results.results || !this.results.results.overallStats || !this.results.results.overallStats.totalAnalyzed) {
+    // Check if results structure exists (not if totalAnalyzed > 0, since 0 is valid)
+    const hasValidStructure = this.results &&
+                              this.results.results &&
+                              this.results.results.overallStats &&
+                              this.results.results.overallStats.hasOwnProperty('totalAnalyzed');
+
+    if (!hasValidStructure) {
       statsSection.style.display = 'none';
       noDataDiv.style.display = 'block';
       return;
