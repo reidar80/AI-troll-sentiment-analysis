@@ -26,6 +26,26 @@ class PopupController {
     // Setup event listeners
     this.setupEventListeners();
 
+    // Listen for analysis completion messages
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'analysisComplete') {
+        // Reload results and update UI
+        this.loadResults().then(() => {
+          this.updateUI();
+        });
+      }
+    });
+
+    // Listen for storage changes
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'local' && changes.latestAnalysis) {
+        // Reload results and update UI
+        this.loadResults().then(() => {
+          this.updateUI();
+        });
+      }
+    });
+
     // Update UI
     this.updateUI();
   }

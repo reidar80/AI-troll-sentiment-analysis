@@ -154,7 +154,7 @@
 .troll-detector-indicator::after {
   content: attr(title);
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.9);
@@ -166,7 +166,7 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
-  margin-bottom: 8px;
+  margin-top: 8px;
   z-index: 10000;
   max-width: 300px;
   white-space: normal;
