@@ -6,7 +6,7 @@
 // Installation and updates
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[AI Troll Detector] Extension installed');
+    console.log('[AI and Troll Detector] Extension installed');
 
     // Set default settings
     chrome.storage.sync.set({
@@ -18,7 +18,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     // Open welcome page (optional)
     // chrome.tabs.create({ url: 'welcome.html' });
   } else if (details.reason === 'update') {
-    console.log('[AI Troll Detector] Extension updated');
+    console.log('[AI and Troll Detector] Extension updated');
   }
 });
 
@@ -80,7 +80,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // Keep service worker alive (Manifest V3 requirement)
 chrome.runtime.onConnect.addListener((port) => {
-  console.log('[AI Troll Detector] Port connected');
+  console.log('[AI and Troll Detector] Port connected');
 });
 
-console.log('[AI Troll Detector] Background service worker loaded');
+console.log('[AI and Troll Detector] Background service worker loaded');

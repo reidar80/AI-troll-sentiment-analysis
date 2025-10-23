@@ -9,6 +9,7 @@ class PopupController {
     this.settings = {
       autoAnalyze: true,
       showIndicators: true,
+      showCleanIndicators: true,
       flagThreshold: 0.5
     };
 
@@ -34,10 +35,11 @@ class PopupController {
    */
   async loadSettings() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(['autoAnalyze', 'showIndicators', 'flagThreshold'], (result) => {
+      chrome.storage.sync.get(['autoAnalyze', 'showIndicators', 'showCleanIndicators', 'flagThreshold'], (result) => {
         this.settings = {
           autoAnalyze: result.autoAnalyze !== false,
           showIndicators: result.showIndicators !== false,
+          showCleanIndicators: result.showCleanIndicators !== false,
           flagThreshold: result.flagThreshold || 0.5
         };
         resolve();
@@ -86,6 +88,15 @@ class PopupController {
     showIndicatorsToggle.checked = this.settings.showIndicators;
     showIndicatorsToggle.addEventListener('change', (e) => {
       this.settings.showIndicators = e.target.checked;
+      this.saveSettings();
+      this.notifyContentScript();
+    });
+
+    // Show clean indicators toggle
+    const showCleanIndicatorsToggle = document.getElementById('showCleanIndicators');
+    showCleanIndicatorsToggle.checked = this.settings.showCleanIndicators;
+    showCleanIndicatorsToggle.addEventListener('change', (e) => {
+      this.settings.showCleanIndicators = e.target.checked;
       this.saveSettings();
       this.notifyContentScript();
     });
@@ -158,19 +169,26 @@ class PopupController {
    */
   updateUI() {
     const loading = document.getElementById('loading');
-    const resultsDiv = document.getElementById('results');
+    const statsSection = document.getElementById('stats-section');
     const noDataDiv = document.getElementById('no-data');
+    const controlsSection = document.getElementById('controls-section');
 
+    // Always hide loading
     loading.style.display = 'none';
 
-    if (!this.results || !this.results.results.overallStats.totalAnalyzed) {
-      resultsDiv.style.display = 'none';
+    // Always show controls (settings and analyze button)
+    controlsSection.style.display = 'block';
+
+    // Show/hide stats based on whether we have data
+    if (!this.results || !this.results.results || !this.results.results.overallStats || !this.results.results.overallStats.totalAnalyzed) {
+      statsSection.style.display = 'none';
       noDataDiv.style.display = 'block';
       return;
     }
 
+    // We have data - show stats, hide no-data message
     noDataDiv.style.display = 'none';
-    resultsDiv.style.display = 'block';
+    statsSection.style.display = 'block';
 
     const stats = this.results.results.overallStats;
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Troll Detector</title>
+  <title>AI and Troll Detector</title>
   <style>
     * {
       margin: 0;
@@ -265,7 +265,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🛡️ AI Troll Detector</h1>
+      <h1>🛡️ AI and Troll Detector</h1>
       <p>Analyzing content for AI-generated and troll patterns</p>
     </div>
 
@@ -274,7 +274,8 @@
         <div>Loading analysis...</div>
       </div>
 
-      <div id="results" style="display: none;">
+      <!-- Stats Section (hidden when no data) -->
+      <div id="stats-section" style="display: none;">
         <!-- Stats Grid -->
         <div class="stats-grid">
           <div class="stat-card" id="total-card">
@@ -305,8 +306,17 @@
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Settings -->
+      <!-- No Data Message (shown when no stats) -->
+      <div id="no-data" class="no-data" style="display: none;">
+        <div class="no-data-icon">🔍</div>
+        <p>No analysis data available yet.</p>
+        <p style="margin-top: 10px; font-size: 12px;">Click "Analyze Page Now" to start.</p>
+      </div>
+
+      <!-- Settings Section (always visible) -->
+      <div id="controls-section">
         <div class="section">
           <div class="section-title">
             <span>⚙️</span>
@@ -328,6 +338,13 @@
               </label>
             </div>
             <div class="setting-row">
+              <span class="setting-label">Show clean badges 🛡️</span>
+              <label class="toggle">
+                <input type="checkbox" id="showCleanIndicators" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
               <div style="flex: 1;">
                 <span class="setting-label">Detection threshold</span>
                 <div class="threshold-value" id="threshold-value">50%</div>
@@ -342,16 +359,10 @@
           🔍 Analyze Page Now
         </button>
       </div>
-
-      <div id="no-data" class="no-data" style="display: none;">
-        <div class="no-data-icon">🔍</div>
-        <p>No analysis data available yet.</p>
-        <p style="margin-top: 10px; font-size: 12px;">Click "Analyze Page Now" to start.</p>
-      </div>
     </div>
 
     <div class="footer">
-      AI Troll Detector v1.0 | Detects AI-generated content and troll behavior
+      AI and Troll Detector v1.0 | Detects AI-generated content and troll behavior
     </div>
   </div>
 
