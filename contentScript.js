@@ -20,6 +20,7 @@ class TrollDetector {
     this.settings = {
       autoAnalyze: true,
       showIndicators: true,
+      showCleanIndicators: true,  // Show green shields for clean content
       flagThreshold: 0.5
     };
 
@@ -33,7 +34,7 @@ class TrollDetector {
     // Load settings from storage
     await this.loadSettings();
 
-    console.log('[AI Troll Detector] Initialized on platform:', this.platformDetector.platform);
+    console.log('[AI and Troll Detector] Initialized on platform:', this.platformDetector.platform);
 
     // Start analyzing if auto-analyze is enabled
     if (this.settings.autoAnalyze) {
@@ -72,10 +73,11 @@ class TrollDetector {
    */
   async loadSettings() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(['autoAnalyze', 'showIndicators', 'flagThreshold'], (result) => {
+      chrome.storage.sync.get(['autoAnalyze', 'showIndicators', 'showCleanIndicators', 'flagThreshold'], (result) => {
         this.settings = {
           autoAnalyze: result.autoAnalyze !== false, // Default true
           showIndicators: result.showIndicators !== false, // Default true
+          showCleanIndicators: result.showCleanIndicators !== false, // Default true
           flagThreshold: result.flagThreshold || 0.5
         };
         resolve();
@@ -126,7 +128,7 @@ class TrollDetector {
    * Start the analysis process
    */
   async startAnalysis() {
-    console.log('[AI Troll Detector] Starting analysis...');
+    console.log('[AI and Troll Detector] Starting analysis...');
 
     // Reset results
     this.analysisResults = {
@@ -156,14 +158,14 @@ class TrollDetector {
     // Save results
     await this.saveResults();
 
-    console.log('[AI Troll Detector] Analysis complete:', this.analysisResults);
+    console.log('[AI and Troll Detector] Analysis complete:', this.analysisResults);
   }
 
   /**
    * Analyze LinkedIn content
    */
   async analyzeLinkedIn() {
-    console.log('[AI Troll Detector] Analyzing LinkedIn...');
+    console.log('[AI and Troll Detector] Analyzing LinkedIn...');
 
     // Check if we're on a profile page
     if (window.location.pathname.includes('/in/')) {
@@ -255,9 +257,13 @@ class TrollDetector {
         analysis
       });
 
-      // Add indicator if suspicious
-      if (this.settings.showIndicators && analysis.isSuspicious) {
-        this.addCommentIndicator(post, analysis);
+      // Add indicator (suspicious or clean)
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(post, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(post, analysis);
+        }
       }
     });
 
@@ -281,8 +287,12 @@ class TrollDetector {
         analysis
       });
 
-      if (this.settings.showIndicators && analysis.isSuspicious) {
-        this.addCommentIndicator(comment, analysis);
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(comment, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(comment, analysis);
+        }
       }
     });
   }
@@ -291,7 +301,7 @@ class TrollDetector {
    * Analyze YouTube comments
    */
   async analyzeYouTube() {
-    console.log('[AI Troll Detector] Analyzing YouTube...');
+    console.log('[AI and Troll Detector] Analyzing YouTube...');
 
     const comments = document.querySelectorAll('ytd-comment-renderer');
 
@@ -313,8 +323,12 @@ class TrollDetector {
         analysis
       });
 
-      if (this.settings.showIndicators && analysis.isSuspicious) {
-        this.addCommentIndicator(comment, analysis);
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(comment, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(comment, analysis);
+        }
       }
     });
   }
@@ -323,7 +337,7 @@ class TrollDetector {
    * Analyze Reddit comments
    */
   async analyzeReddit() {
-    console.log('[AI Troll Detector] Analyzing Reddit...');
+    console.log('[AI and Troll Detector] Analyzing Reddit...');
 
     const comments = document.querySelectorAll('[data-test-id="comment"]');
 
@@ -345,8 +359,12 @@ class TrollDetector {
         analysis
       });
 
-      if (this.settings.showIndicators && analysis.isSuspicious) {
-        this.addCommentIndicator(comment, analysis);
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(comment, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(comment, analysis);
+        }
       }
     });
   }
@@ -355,7 +373,7 @@ class TrollDetector {
    * Generic analysis for other websites
    */
   async analyzeGeneric() {
-    console.log('[AI Troll Detector] Performing generic analysis...');
+    console.log('[AI and Troll Detector] Performing generic analysis...');
 
     // Look for common comment patterns
     const potentialComments = document.querySelectorAll(
@@ -377,8 +395,12 @@ class TrollDetector {
         analysis
       });
 
-      if (this.settings.showIndicators && analysis.isSuspicious) {
-        this.addCommentIndicator(element, analysis);
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(element, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(element, analysis);
+        }
       }
     });
   }
@@ -423,6 +445,34 @@ class TrollDetector {
     `;
     indicator.setAttribute('data-class', className);
     indicator.title = `Flags: ${analysis.flags.join(', ')}`;
+
+    // Insert indicator
+    element.style.position = 'relative';
+    element.insertBefore(indicator, element.firstChild);
+  }
+
+  /**
+   * Add clean/safe indicator (green shield)
+   */
+  addCleanIndicator(element, analysis) {
+    // Remove existing indicator if present
+    const existing = element.querySelector('.troll-detector-indicator');
+    if (existing) existing.remove();
+
+    const indicator = document.createElement('div');
+    indicator.className = 'troll-detector-indicator';
+
+    const emoji = '🛡️';
+    const label = 'Verified Clean';
+    const className = 'success';
+
+    indicator.innerHTML = `
+      <span class="troll-detector-emoji">${emoji}</span>
+      <span class="troll-detector-label">${label}</span>
+      <span class="troll-detector-score">✓</span>
+    `;
+    indicator.setAttribute('data-class', className);
+    indicator.title = 'No AI, troll, or extreme sentiment patterns detected';
 
     // Insert indicator
     element.style.position = 'relative';
