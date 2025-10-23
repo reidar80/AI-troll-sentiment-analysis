@@ -116,6 +116,10 @@ class TrollDetector {
       case 'updateSettings':
         this.settings = { ...this.settings, ...request.settings };
         chrome.storage.sync.set(this.settings);
+
+        // Update badge visibility based on new settings
+        this.updateBadgeVisibility();
+
         sendResponse({ success: true });
         break;
 
@@ -159,6 +163,14 @@ class TrollDetector {
     await this.saveResults();
 
     console.log('[AI and Troll Detector] Analysis complete:', this.analysisResults);
+
+    // Notify extension that analysis is complete
+    chrome.runtime.sendMessage({
+      action: 'analysisComplete',
+      stats: this.analysisResults.overallStats
+    }).catch(() => {
+      // Ignore errors if popup is closed
+    });
   }
 
   /**
@@ -537,6 +549,35 @@ class TrollDetector {
       },
       averageSuspicionScore: this.analysisResults.comments.reduce((sum, c) => sum + (c.analysis.suspicionScore || 0), 0) / total
     };
+  }
+
+  /**
+   * Update visibility of badges based on settings
+   */
+  updateBadgeVisibility() {
+    const allIndicators = document.querySelectorAll('.troll-detector-indicator');
+
+    allIndicators.forEach((indicator) => {
+      // Check if this is a clean indicator (has "success" class)
+      const isCleanIndicator = indicator.getAttribute('data-class') === 'success';
+
+      if (!this.settings.showIndicators) {
+        // Master toggle off - hide all indicators
+        indicator.style.display = 'none';
+      } else if (isCleanIndicator && !this.settings.showCleanIndicators) {
+        // Clean indicators toggle off - hide only clean badges
+        indicator.style.display = 'none';
+      } else {
+        // Show the indicator
+        indicator.style.display = 'inline-flex';
+      }
+    });
+
+    // Also handle profile badges
+    const profileBadges = document.querySelectorAll('.troll-detector-profile-badge');
+    profileBadges.forEach((badge) => {
+      badge.style.display = this.settings.showIndicators ? 'block' : 'none';
+    });
   }
 
   /**
