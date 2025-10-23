@@ -158,19 +158,26 @@ class PopupController {
    */
   updateUI() {
     const loading = document.getElementById('loading');
-    const resultsDiv = document.getElementById('results');
+    const statsSection = document.getElementById('stats-section');
     const noDataDiv = document.getElementById('no-data');
+    const controlsSection = document.getElementById('controls-section');
 
+    // Always hide loading
     loading.style.display = 'none';
 
-    if (!this.results || !this.results.results.overallStats.totalAnalyzed) {
-      resultsDiv.style.display = 'none';
+    // Always show controls (settings and analyze button)
+    controlsSection.style.display = 'block';
+
+    // Show/hide stats based on whether we have data
+    if (!this.results || !this.results.results || !this.results.results.overallStats || !this.results.results.overallStats.totalAnalyzed) {
+      statsSection.style.display = 'none';
       noDataDiv.style.display = 'block';
       return;
     }
 
+    // We have data - show stats, hide no-data message
     noDataDiv.style.display = 'none';
-    resultsDiv.style.display = 'block';
+    statsSection.style.display = 'block';
 
     const stats = this.results.results.overallStats;
 
