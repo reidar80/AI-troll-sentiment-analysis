@@ -346,18 +346,73 @@ class TrollDetector {
   }
 
   /**
-   * Analyze Reddit comments
+   * Analyze Reddit comments and posts
    */
   async analyzeReddit() {
     console.log('[AI and Troll Detector] Analyzing Reddit...');
 
-    const comments = document.querySelectorAll('[data-test-id="comment"]');
+    // Analyze Reddit posts
+    const posts = document.querySelectorAll('[data-test-id="post-container"], div[data-testid="post-container"], .Post, shreddit-post');
+
+    posts.forEach((post) => {
+      if (this.analyzedElements.has(post)) return;
+      this.analyzedElements.add(post);
+
+      // Try multiple selectors for post content (new Reddit and old Reddit)
+      let textEl = post.querySelector('[data-click-id="text"], [data-adclicklocation="title"], h3, [slot="title"], div[slot="text-body"]');
+
+      // For shreddit-post elements, get the text from multiple possible locations
+      if (!textEl && post.tagName === 'SHREDDIT-POST') {
+        textEl = post.querySelector('h1, div[slot="text-body"], p');
+      }
+
+      // Fallback: check for selftext or title in old Reddit
+      if (!textEl) {
+        textEl = post.querySelector('.title, .md, .usertext-body');
+      }
+
+      if (!textEl) return;
+
+      const text = textEl.textContent.trim();
+      if (text.length < 10) return;
+
+      const analysis = this.analyzer.analyzeContent(text);
+
+      this.analysisResults.comments.push({
+        type: 'reddit_post',
+        text: text.substring(0, 200),
+        analysis
+      });
+
+      if (this.settings.showIndicators) {
+        if (analysis.isSuspicious) {
+          this.addCommentIndicator(post, analysis);
+        } else if (this.settings.showCleanIndicators) {
+          this.addCleanIndicator(post, analysis);
+        }
+      }
+    });
+
+    // Analyze Reddit comments - updated selectors for new Reddit
+    const comments = document.querySelectorAll('shreddit-comment, [data-testid="comment"], .Comment, .comment, div[id^="t1_"]');
 
     comments.forEach((comment) => {
       if (this.analyzedElements.has(comment)) return;
       this.analyzedElements.add(comment);
 
-      const textEl = comment.querySelector('div[data-click-id="text"]');
+      // Try multiple selectors for comment content
+      let textEl = comment.querySelector('div[slot="comment"], p, [data-testid="comment-body-text"], .md, div[id^="t1_"] .md');
+
+      // For shreddit-comment elements
+      if (!textEl && comment.tagName === 'SHREDDIT-COMMENT') {
+        textEl = comment.querySelector('div[slot="comment"] p, p');
+      }
+
+      // Old Reddit fallback
+      if (!textEl) {
+        textEl = comment.querySelector('.usertext-body, .md');
+      }
+
       if (!textEl) return;
 
       const text = textEl.textContent.trim();
