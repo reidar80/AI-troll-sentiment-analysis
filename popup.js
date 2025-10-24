@@ -32,6 +32,13 @@ class PopupController {
         // Reload results and update UI
         this.loadResults().then(() => {
           this.updateUI();
+
+          // Re-enable analyze button if it was analyzing
+          const analyzeBtn = document.getElementById('analyze-btn');
+          if (analyzeBtn && analyzeBtn.disabled) {
+            analyzeBtn.textContent = '🔍 Analyze Page Now';
+            analyzeBtn.disabled = false;
+          }
         });
       }
     });
@@ -167,19 +174,27 @@ class PopupController {
     analyzeBtn.textContent = '⏳ Analyzing...';
     analyzeBtn.disabled = true;
 
+    // Set a timeout as a safety fallback
+    const timeoutId = setTimeout(() => {
+      console.log('[Popup] Analysis timeout - restoring button state');
+      analyzeBtn.textContent = '🔍 Analyze Page Now';
+      analyzeBtn.disabled = false;
+    }, 30000); // 30 second timeout
+
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
       if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: 'analyzeNow'
-        }, async (response) => {
-          // Wait a bit for analysis to complete
-          setTimeout(async () => {
-            await this.loadResults();
-            this.updateUI();
-            analyzeBtn.textContent = '🔍 Analyze Page Now';
-            analyzeBtn.disabled = false;
-          }, 2000);
-        });
+        try {
+          await chrome.tabs.sendMessage(tabs[0].id, {
+            action: 'analyzeNow'
+          });
+          // Analysis completion will be handled by the onMessage listener
+          // which updates UI and restores button state
+        } catch (error) {
+          console.error('[Popup] Error triggering analysis:', error);
+          clearTimeout(timeoutId);
+          analyzeBtn.textContent = '🔍 Analyze Page Now';
+          analyzeBtn.disabled = false;
+        }
       }
     });
   }
