@@ -489,6 +489,8 @@ class TrollDetector {
       // Analyze Reddit posts
       const posts = this.safeQuerySelectorAll(document, '[data-test-id="post-container"], div[data-testid="post-container"], .Post, shreddit-post');
 
+      console.log(`[AI and Troll Detector] Found ${posts.length} Reddit posts to analyze`);
+
       posts.forEach((post) => {
         if (this.analyzedElements.has(post)) return;
         this.analyzedElements.add(post);
@@ -544,18 +546,25 @@ class TrollDetector {
       });
 
       // Analyze Reddit comments - updated selectors for new Reddit
-      const comments = this.safeQuerySelectorAll(document, 'shreddit-comment, [data-testid="comment"], .Comment, .comment, div[id^="t1_"]');
+      const comments = this.safeQuerySelectorAll(document, 'shreddit-comment, [data-testid="comment"], [id^="t1-"], .Comment, .comment, div[id^="t1_"]');
+
+      console.log(`[AI and Troll Detector] Found ${comments.length} Reddit comments to analyze`);
 
       comments.forEach((comment) => {
         if (this.analyzedElements.has(comment)) return;
         this.analyzedElements.add(comment);
 
         // Try multiple selectors for comment content
-        let textEl = this.safeQuerySelector(comment, 'div[slot="comment"], p, [data-testid="comment-body-text"], .md, div[id^="t1_"] .md');
+        let textEl = this.safeQuerySelector(comment, 'div[slot="comment"], [data-testid="comment-body-text"], p[class*="text"], .md, div[id^="t1_"] .md');
 
-        // For shreddit-comment elements
+        // For shreddit-comment elements (new Reddit)
         if (!textEl && comment.tagName === 'SHREDDIT-COMMENT') {
-          textEl = this.safeQuerySelector(comment, 'div[slot="comment"] p, p');
+          textEl = this.safeQuerySelector(comment, 'div[slot="comment"] p, div[slot="comment"], p');
+        }
+
+        // Additional new Reddit selectors
+        if (!textEl) {
+          textEl = this.safeQuerySelector(comment, '[data-click-id="text"], [data-adclicklocation="body"]');
         }
 
         // Old Reddit fallback
@@ -563,10 +572,16 @@ class TrollDetector {
           textEl = this.safeQuerySelector(comment, '.usertext-body, .md');
         }
 
-        if (!textEl) return;
+        if (!textEl) {
+          console.log('[AI and Troll Detector] Could not find text element in comment:', comment.tagName, comment.className);
+          return;
+        }
 
         const text = textEl.textContent.trim();
-        if (text.length < 5) return;
+        if (text.length < 5) {
+          console.log('[AI and Troll Detector] Comment too short, skipping:', text.length, 'chars');
+          return;
+        }
 
         // Check if content already analyzed (deduplication)
         const contentHash = this.hashContent(text);
@@ -591,11 +606,15 @@ class TrollDetector {
           analysis
         });
 
+        console.log(`[AI and Troll Detector] Analyzed Reddit comment - Suspicious: ${analysis.isSuspicious}, Score: ${analysis.suspicionScore}`);
+
         if (this.settings.showIndicators) {
           if (analysis.isSuspicious) {
             this.addCommentIndicator(comment, analysis);
+            console.log('[AI and Troll Detector] Added suspicious indicator to comment');
           } else if (this.settings.showCleanIndicators) {
             this.addCleanIndicator(comment, analysis);
+            console.log('[AI and Troll Detector] Added clean indicator to comment');
           }
         }
       });

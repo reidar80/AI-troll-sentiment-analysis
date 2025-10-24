@@ -10,10 +10,11 @@
       "minLength": 10
     },
     "comments": {
-      "container": "shreddit-comment, [data-testid='comment'], .Comment, .comment, div[id^='t1_']",
+      "container": "shreddit-comment, [data-testid='comment'], [id^='t1-'], .Comment, .comment, div[id^='t1_']",
       "content": [
-        "div[slot='comment'], p, [data-testid='comment-body-text'], .md, div[id^='t1_'] .md",
-        "div[slot='comment'] p, p",
+        "div[slot='comment'], [data-testid='comment-body-text'], p[class*='text'], .md, div[id^='t1_'] .md",
+        "div[slot='comment'] p, div[slot='comment'], p",
+        "[data-click-id='text'], [data-adclicklocation='body']",
         ".usertext-body, .md"
       ],
       "minLength": 5
