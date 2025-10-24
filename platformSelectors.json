@@ -1,0 +1,60 @@
+{
+  "reddit": {
+    "posts": {
+      "container": "[data-test-id='post-container'], div[data-testid='post-container'], .Post, shreddit-post",
+      "content": [
+        "[data-click-id='text'], [data-adclicklocation='title'], h3, [slot='title'], div[slot='text-body']",
+        "h1, div[slot='text-body'], p",
+        ".title, .md, .usertext-body"
+      ],
+      "minLength": 10
+    },
+    "comments": {
+      "container": "shreddit-comment, [data-testid='comment'], .Comment, .comment, div[id^='t1_']",
+      "content": [
+        "div[slot='comment'], p, [data-testid='comment-body-text'], .md, div[id^='t1_'] .md",
+        "div[slot='comment'] p, p",
+        ".usertext-body, .md"
+      ],
+      "minLength": 5
+    }
+  },
+  "linkedin": {
+    "posts": {
+      "container": ".feed-shared-update-v2, .occludable-update",
+      "content": [
+        ".feed-shared-update-v2__description, .feed-shared-text"
+      ],
+      "minLength": 10
+    },
+    "comments": {
+      "container": ".comments-comment-item, .comment-item",
+      "content": [
+        ".comments-comment-item__main-content, .comment-text"
+      ],
+      "minLength": 5
+    },
+    "profile": {
+      "headline": ".text-heading-xlarge, .ph5 h1",
+      "bio": ".text-body-medium, .ph5 .text-body-medium",
+      "about": "#about ~ .display-flex .inline-show-more-text, .pv-about-section",
+      "profileBadgeTarget": ".pv-text-details__left-panel, .ph5"
+    }
+  },
+  "youtube": {
+    "comments": {
+      "container": "ytd-comment-renderer",
+      "content": [
+        "#content-text"
+      ],
+      "minLength": 5
+    }
+  },
+  "generic": {
+    "comments": {
+      "container": ".comment, .post, [class*='comment'], [class*='post'], article",
+      "minLength": 10,
+      "maxLength": 5000
+    }
+  }
+}

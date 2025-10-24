@@ -189,26 +189,44 @@ class ProfileAnalyzer {
       return { repetitionScore: 0, avgAIScore: 0, extremeSentimentRatio: 0 };
     }
 
+    // Performance optimization: limit posts analyzed
+    const MAX_POSTS_TO_ANALYZE = 50;
+    const textsToAnalyze = validTexts.slice(0, MAX_POSTS_TO_ANALYZE);
+
     // Check similarity between posts
     let totalSimilarity = 0;
     let comparisons = 0;
 
-    for (let i = 0; i < validTexts.length - 1; i++) {
-      for (let j = i + 1; j < validTexts.length; j++) {
-        const similarity = this.utils.cosineSimilarity(validTexts[i], validTexts[j]);
-        totalSimilarity += similarity;
-        comparisons++;
+    // Optimize O(n²) comparison
+    if (textsToAnalyze.length > 20) {
+      // For many posts, only compare each with next 5 posts
+      for (let i = 0; i < textsToAnalyze.length - 1; i++) {
+        const maxJ = Math.min(i + 6, textsToAnalyze.length);
+        for (let j = i + 1; j < maxJ; j++) {
+          const similarity = this.utils.cosineSimilarity(textsToAnalyze[i], textsToAnalyze[j]);
+          totalSimilarity += similarity;
+          comparisons++;
+        }
+      }
+    } else {
+      // For fewer posts, compare all pairs
+      for (let i = 0; i < textsToAnalyze.length - 1; i++) {
+        for (let j = i + 1; j < textsToAnalyze.length; j++) {
+          const similarity = this.utils.cosineSimilarity(textsToAnalyze[i], textsToAnalyze[j]);
+          totalSimilarity += similarity;
+          comparisons++;
+        }
       }
     }
 
     const repetitionScore = comparisons > 0 ? totalSimilarity / comparisons : 0;
 
     // Analyze AI patterns in each post
-    const aiScores = validTexts.map(text => this.utils.detectAIPatterns(text).score);
+    const aiScores = textsToAnalyze.map(text => this.utils.detectAIPatterns(text).score);
     const avgAIScore = aiScores.reduce((sum, score) => sum + score, 0) / aiScores.length;
 
     // Analyze sentiment distribution
-    const sentiments = validTexts.map(text => this.sentimentAnalyzer.analyze(text));
+    const sentiments = textsToAnalyze.map(text => this.sentimentAnalyzer.analyze(text));
     const extremeCount = sentiments.filter(s => s.isExtreme).length;
     const extremeSentimentRatio = extremeCount / sentiments.length;
 
@@ -216,8 +234,8 @@ class ProfileAnalyzer {
     const positiveCount = sentiments.filter(s => s.classification === 'positive').length;
     const negativeCount = sentiments.filter(s => s.classification === 'negative').length;
 
-    const isUniformSentiment = (positiveCount / validTexts.length > 0.8) ||
-                               (negativeCount / validTexts.length > 0.8);
+    const isUniformSentiment = (positiveCount / textsToAnalyze.length > 0.8) ||
+                               (negativeCount / textsToAnalyze.length > 0.8);
 
     return {
       repetitionScore,

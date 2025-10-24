@@ -10,8 +10,18 @@ class TextAnalysisUtils {
    * Returns the minimum number of edits needed to transform s1 into s2
    */
   static levenshteinDistance(s1, s2) {
+    // Input validation
+    if (!s1 || !s2 || typeof s1 !== 'string' || typeof s2 !== 'string') {
+      return 0;
+    }
+
     const len1 = s1.length;
     const len2 = s2.length;
+
+    // Handle edge cases
+    if (len1 === 0) return len2;
+    if (len2 === 0) return len1;
+
     const matrix = [];
 
     // Initialize matrix
@@ -42,6 +52,11 @@ class TextAnalysisUtils {
    * 1 = identical, 0 = completely different
    */
   static similarityRatio(s1, s2) {
+    // Input validation
+    if (!s1 || !s2 || typeof s1 !== 'string' || typeof s2 !== 'string') {
+      return 0;
+    }
+
     const longer = s1.length > s2.length ? s1 : s2;
     const shorter = s1.length > s2.length ? s2 : s1;
 
@@ -55,6 +70,11 @@ class TextAnalysisUtils {
    * Tokenize text into words, removing punctuation and converting to lowercase
    */
   static tokenize(text) {
+    // Input validation
+    if (!text || typeof text !== 'string') {
+      return [];
+    }
+
     return text
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
@@ -67,8 +87,18 @@ class TextAnalysisUtils {
    * Returns value between 0 and 1
    */
   static cosineSimilarity(text1, text2) {
+    // Input validation
+    if (!text1 || !text2 || typeof text1 !== 'string' || typeof text2 !== 'string') {
+      return 0;
+    }
+
     const tokens1 = this.tokenize(text1);
     const tokens2 = this.tokenize(text2);
+
+    // Handle empty tokens
+    if (tokens1.length === 0 || tokens2.length === 0) {
+      return 0;
+    }
 
     // Build frequency maps
     const freq1 = {};
@@ -246,18 +276,41 @@ class TextAnalysisUtils {
    * Returns true if text contains suspicious repetition
    */
   static detectRepetition(text, threshold = 0.3) {
+    // Input validation
+    if (!text || typeof text !== 'string') {
+      return { isRepetitive: false, score: 0 };
+    }
+
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
 
     if (sentences.length < 2) return { isRepetitive: false, score: 0 };
 
+    // Performance optimization: limit comparisons for large texts
+    const MAX_SENTENCES_TO_COMPARE = 50;
+    const sentencesToAnalyze = sentences.slice(0, MAX_SENTENCES_TO_COMPARE);
+
     let totalSimilarity = 0;
     let comparisons = 0;
 
-    for (let i = 0; i < sentences.length - 1; i++) {
-      for (let j = i + 1; j < sentences.length; j++) {
-        const similarity = this.cosineSimilarity(sentences[i], sentences[j]);
-        totalSimilarity += similarity;
-        comparisons++;
+    // Further optimization: sample comparisons for very large texts
+    if (sentencesToAnalyze.length > 20) {
+      // For large texts, only compare each sentence with next 3 sentences
+      for (let i = 0; i < sentencesToAnalyze.length - 1; i++) {
+        const maxJ = Math.min(i + 4, sentencesToAnalyze.length);
+        for (let j = i + 1; j < maxJ; j++) {
+          const similarity = this.cosineSimilarity(sentencesToAnalyze[i], sentencesToAnalyze[j]);
+          totalSimilarity += similarity;
+          comparisons++;
+        }
+      }
+    } else {
+      // For smaller texts, compare all pairs
+      for (let i = 0; i < sentencesToAnalyze.length - 1; i++) {
+        for (let j = i + 1; j < sentencesToAnalyze.length; j++) {
+          const similarity = this.cosineSimilarity(sentencesToAnalyze[i], sentencesToAnalyze[j]);
+          totalSimilarity += similarity;
+          comparisons++;
+        }
       }
     }
 
@@ -329,20 +382,58 @@ class TextAnalysisUtils {
    * Check if multiple comments are suspiciously similar (coordinated behavior)
    */
   static detectCoordinatedComments(comments, threshold = 0.7) {
+    // Input validation
+    if (!comments || !Array.isArray(comments) || comments.length < 2) {
+      return {
+        hasSuspiciousPatterns: false,
+        matches: []
+      };
+    }
+
     const suspicious = [];
 
-    for (let i = 0; i < comments.length - 1; i++) {
-      for (let j = i + 1; j < comments.length; j++) {
-        const similarity = this.cosineSimilarity(comments[i].text, comments[j].text);
+    // Performance optimization: limit comparisons for large comment sets
+    const MAX_COMMENTS_TO_COMPARE = 100;
+    const commentsToAnalyze = comments.slice(0, MAX_COMMENTS_TO_COMPARE);
 
-        if (similarity > threshold) {
-          suspicious.push({
-            index1: i,
-            index2: j,
-            similarity,
-            text1: comments[i].text.substring(0, 100),
-            text2: comments[j].text.substring(0, 100)
-          });
+    // Further optimization: for large sets, sample comparisons
+    if (commentsToAnalyze.length > 50) {
+      // For large sets, only compare each comment with next 10 comments
+      for (let i = 0; i < commentsToAnalyze.length - 1; i++) {
+        const maxJ = Math.min(i + 11, commentsToAnalyze.length);
+        for (let j = i + 1; j < maxJ; j++) {
+          if (!commentsToAnalyze[i].text || !commentsToAnalyze[j].text) continue;
+
+          const similarity = this.cosineSimilarity(commentsToAnalyze[i].text, commentsToAnalyze[j].text);
+
+          if (similarity > threshold) {
+            suspicious.push({
+              index1: i,
+              index2: j,
+              similarity,
+              text1: commentsToAnalyze[i].text.substring(0, 100),
+              text2: commentsToAnalyze[j].text.substring(0, 100)
+            });
+          }
+        }
+      }
+    } else {
+      // For smaller sets, compare all pairs
+      for (let i = 0; i < commentsToAnalyze.length - 1; i++) {
+        for (let j = i + 1; j < commentsToAnalyze.length; j++) {
+          if (!commentsToAnalyze[i].text || !commentsToAnalyze[j].text) continue;
+
+          const similarity = this.cosineSimilarity(commentsToAnalyze[i].text, commentsToAnalyze[j].text);
+
+          if (similarity > threshold) {
+            suspicious.push({
+              index1: i,
+              index2: j,
+              similarity,
+              text1: commentsToAnalyze[i].text.substring(0, 100),
+              text2: commentsToAnalyze[j].text.substring(0, 100)
+            });
+          }
         }
       }
     }
