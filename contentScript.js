@@ -198,6 +198,10 @@ class TrollDetector {
     this.isAnalyzing = true;
     console.log('[AI and Troll Detector] Starting analysis...');
 
+    // Reset deduplication trackers for this run so fresh analyses are counted
+    this.analyzedElements = new WeakSet();
+    this.analyzedContent = new Map();
+
     try {
       // Reset results
       this.analysisResults = {
@@ -344,14 +348,7 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          // Still add indicator if needed, but skip re-analysis
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(post, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(post, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(post, 'linkedin_post', text, cachedAnalysis);
           return;
         }
 
@@ -359,20 +356,7 @@ class TrollDetector {
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'linkedin_post',
-          text: text.substring(0, 200),
-          analysis
-        });
-
-        // Add indicator (suspicious or clean)
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            this.addCommentIndicator(post, analysis);
-          } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(post, analysis);
-          }
-        }
+        this.recordContentAnalysis(post, 'linkedin_post', text, analysis);
       });
 
       // Analyze comments
@@ -391,33 +375,14 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          // Still add indicator if needed, but skip re-analysis
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(comment, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(comment, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(comment, 'linkedin_comment', text, cachedAnalysis);
           return;
         }
 
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'linkedin_comment',
-          text: text.substring(0, 200),
-          analysis
-        });
-
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            this.addCommentIndicator(comment, analysis);
-          } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(comment, analysis);
-          }
-        }
+        this.recordContentAnalysis(comment, 'linkedin_comment', text, analysis);
       });
     } catch (error) {
       console.error('[AI and Troll Detector] Error analyzing LinkedIn feed:', error);
@@ -447,32 +412,14 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(comment, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(comment, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(comment, 'youtube_comment', text, cachedAnalysis);
           return;
         }
 
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'youtube_comment',
-          text: text.substring(0, 200),
-          analysis
-        });
-
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            this.addCommentIndicator(comment, analysis);
-          } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(comment, analysis);
-          }
-        }
+        this.recordContentAnalysis(comment, 'youtube_comment', text, analysis);
       });
     } catch (error) {
       console.error('[AI and Troll Detector] Error analyzing YouTube:', error);
@@ -517,32 +464,14 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(post, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(post, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(post, 'reddit_post', text, cachedAnalysis);
           return;
         }
 
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'reddit_post',
-          text: text.substring(0, 200),
-          analysis
-        });
-
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            this.addCommentIndicator(post, analysis);
-          } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(post, analysis);
-          }
-        }
+        this.recordContentAnalysis(post, 'reddit_post', text, analysis);
       });
 
       // Analyze Reddit comments - updated selectors for new Reddit
@@ -587,33 +516,21 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(comment, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(comment, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(comment, 'reddit_comment', text, cachedAnalysis);
           return;
         }
 
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'reddit_comment',
-          text: text.substring(0, 200),
-          analysis
-        });
+        this.recordContentAnalysis(comment, 'reddit_comment', text, analysis);
 
         console.log(`[AI and Troll Detector] Analyzed Reddit comment - Suspicious: ${analysis.isSuspicious}, Score: ${analysis.suspicionScore}`);
 
         if (this.settings.showIndicators) {
           if (analysis.isSuspicious) {
-            this.addCommentIndicator(comment, analysis);
             console.log('[AI and Troll Detector] Added suspicious indicator to comment');
           } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(comment, analysis);
             console.log('[AI and Troll Detector] Added clean indicator to comment');
           }
         }
@@ -646,32 +563,14 @@ class TrollDetector {
         const contentHash = this.hashContent(text);
         if (this.analyzedContent.has(contentHash)) {
           const cachedAnalysis = this.analyzedContent.get(contentHash);
-          if (this.settings.showIndicators) {
-            if (cachedAnalysis.isSuspicious) {
-              this.addCommentIndicator(element, cachedAnalysis);
-            } else if (this.settings.showCleanIndicators) {
-              this.addCleanIndicator(element, cachedAnalysis);
-            }
-          }
+          this.recordContentAnalysis(element, 'generic_comment', text, cachedAnalysis);
           return;
         }
 
         const analysis = this.analyzer.analyzeContent(text);
         this.analyzedContent.set(contentHash, analysis);
 
-        this.analysisResults.comments.push({
-          type: 'generic_comment',
-          text: text.substring(0, 200),
-          analysis
-        });
-
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            this.addCommentIndicator(element, analysis);
-          } else if (this.settings.showCleanIndicators) {
-            this.addCleanIndicator(element, analysis);
-          }
-        }
+        this.recordContentAnalysis(element, 'generic_comment', text, analysis);
       });
     } catch (error) {
       console.error('[AI and Troll Detector] Error in generic analysis:', error);
@@ -759,6 +658,27 @@ class TrollDetector {
       element.insertBefore(indicator, element.firstChild);
     } catch (error) {
       console.error('[AI and Troll Detector] Error adding clean indicator:', error);
+    }
+  }
+
+  /**
+   * Record analysis result and handle indicator display
+   */
+  recordContentAnalysis(element, type, text, analysis) {
+    this.analysisResults.comments.push({
+      type,
+      text: text.substring(0, 200),
+      analysis
+    });
+
+    if (!this.settings.showIndicators) {
+      return;
+    }
+
+    if (analysis.isSuspicious) {
+      this.addCommentIndicator(element, analysis);
+    } else if (this.settings.showCleanIndicators) {
+      this.addCleanIndicator(element, analysis);
     }
   }
 
