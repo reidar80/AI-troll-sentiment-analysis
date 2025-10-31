@@ -81,8 +81,8 @@ const CONFIG = {
 
   // Debugging
   DEBUG: {
-    ENABLED: false,                 // Enable debug logging
-    LOG_ANALYSIS: false,            // Log individual analysis results
+    ENABLED: true,                 // Enable debug logging true/false
+    LOG_ANALYSIS: true,            // Log individual analysis results
     LOG_PERFORMANCE: false          // Log performance metrics
   }
 };
