@@ -38,7 +38,7 @@ class TrollDetector {
     // Load settings from storage
     await this.loadSettings();
 
-    console.log('[AI and Troll Detector] Initialized on platform:', this.platformDetector.platform);
+    logger.info('Initialized on platform:', this.platformDetector.platform);
 
     // Start analyzing if auto-analyze is enabled
     if (this.settings.autoAnalyze) {
@@ -73,17 +73,20 @@ class TrollDetector {
   }
 
   /**
-   * Generate hash for content deduplication
+   * Generate hash for content deduplication using cyrb53 algorithm
+   * Much better collision resistance than simple hash
    */
   hashContent(text) {
     if (!text) return '';
-    let hash = 0;
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < text.length; i++) {
       const char = text.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+      h1 = Math.imul(h1 ^ char, 2654435761);
+      h2 = Math.imul(h2 ^ char, 1597334677);
     }
-    return hash.toString();
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
   }
 
   /**
@@ -95,7 +98,7 @@ class TrollDetector {
       const existingIndicators = element.querySelectorAll('.troll-detector-indicator');
       existingIndicators.forEach(indicator => indicator.remove());
     } catch (error) {
-      console.error('[AI and Troll Detector] Error removing indicators:', error);
+      logger.error('Error removing indicators:', error);
     }
   }
 
@@ -107,7 +110,7 @@ class TrollDetector {
     try {
       return element.querySelector(selectors);
     } catch (error) {
-      console.error('[AI and Troll Detector] Query selector error:', selectors, error);
+      logger.error('Query selector error:', selectors, error);
       return null;
     }
   }
@@ -120,7 +123,7 @@ class TrollDetector {
     try {
       return Array.from(element.querySelectorAll(selectors));
     } catch (error) {
-      console.error('[AI and Troll Detector] Query selector all error:', selectors, error);
+      logger.error('Query selector all error:', selectors, error);
       return [];
     }
   }
@@ -191,12 +194,12 @@ class TrollDetector {
   async startAnalysis() {
     // Prevent concurrent analyses
     if (this.isAnalyzing) {
-      console.log('[AI and Troll Detector] Analysis already in progress, skipping...');
+      logger.log('Analysis already in progress, skipping...');
       return;
     }
 
     this.isAnalyzing = true;
-    console.log('[AI and Troll Detector] Starting analysis...');
+    logger.log('Starting analysis...');
 
     // Reset deduplication trackers for this run so fresh analyses are counted
     this.analyzedElements = new WeakSet();
@@ -231,7 +234,7 @@ class TrollDetector {
       // Save results
       await this.saveResults();
 
-      console.log('[AI and Troll Detector] Analysis complete:', this.analysisResults);
+      logger.log('Analysis complete:', this.analysisResults);
 
       // Notify extension that analysis is complete
       try {
@@ -242,11 +245,11 @@ class TrollDetector {
       } catch (error) {
         // Only ignore "receiving end does not exist" errors (popup closed)
         if (!error.message.includes('Receiving end does not exist')) {
-          console.error('[AI and Troll Detector] Error sending message:', error);
+          logger.error('Error sending message:', error);
         }
       }
     } catch (error) {
-      console.error('[AI and Troll Detector] Analysis error:', error);
+      logger.error('Analysis error:', error);
     } finally {
       this.isAnalyzing = false;
     }
@@ -256,7 +259,7 @@ class TrollDetector {
    * Analyze LinkedIn content
    */
   async analyzeLinkedIn() {
-    console.log('[AI and Troll Detector] Analyzing LinkedIn...');
+    logger.log('Analyzing LinkedIn...');
 
     // Check if we're on a profile page
     if (window.location.pathname.includes('/in/')) {
@@ -321,8 +324,41 @@ class TrollDetector {
         this.addProfileIndicator(analysis);
       }
     } catch (error) {
-      console.error('[AI and Troll Detector] Error analyzing LinkedIn profile:', error);
+      logger.error('Error analyzing LinkedIn profile:', error);
     }
+  }
+
+  /**
+   * Generic method to analyze elements with deduplication
+   * Reduces code duplication across platform-specific analyzers
+   */
+  analyzeElements(elements, type, textSelector, minLength = 5) {
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      TEXT_ANALYSIS: { MIN_COMMENT_LENGTH: 5 }
+    };
+
+    elements.forEach((element) => {
+      if (this.analyzedElements.has(element)) return;
+      this.analyzedElements.add(element);
+
+      const textEl = this.safeQuerySelector(element, textSelector);
+      if (!textEl) return;
+
+      const text = textEl.textContent.trim();
+      if (text.length < minLength) return;
+
+      // Check if content already analyzed (deduplication)
+      const contentHash = this.hashContent(text);
+      const analysis = this.analyzedContent.has(contentHash)
+        ? this.analyzedContent.get(contentHash)
+        : this.analyzer.analyzeContent(text);
+
+      if (!this.analyzedContent.has(contentHash)) {
+        this.analyzedContent.set(contentHash, analysis);
+      }
+
+      this.recordContentAnalysis(element, type, text, analysis);
+    });
   }
 
   /**
@@ -332,60 +368,13 @@ class TrollDetector {
     try {
       // Find all posts in feed
       const posts = this.safeQuerySelectorAll(document, '.feed-shared-update-v2, .occludable-update');
-
-      posts.forEach((post) => {
-        if (this.analyzedElements.has(post)) return;
-        this.analyzedElements.add(post);
-
-        // Extract post text
-        const textEl = this.safeQuerySelector(post, '.feed-shared-update-v2__description, .feed-shared-text');
-        if (!textEl) return;
-
-        const text = textEl.textContent.trim();
-        if (text.length < 10) return; // Skip very short posts
-
-        // Check if content already analyzed (deduplication)
-        const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(post, 'linkedin_post', text, cachedAnalysis);
-          return;
-        }
-
-        // Analyze the content
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
-
-        this.recordContentAnalysis(post, 'linkedin_post', text, analysis);
-      });
+      this.analyzeElements(posts, 'linkedin_post', '.feed-shared-update-v2__description, .feed-shared-text', 10);
 
       // Analyze comments
       const comments = this.safeQuerySelectorAll(document, '.comments-comment-item, .comment-item');
-      comments.forEach((comment) => {
-        if (this.analyzedElements.has(comment)) return;
-        this.analyzedElements.add(comment);
-
-        const textEl = this.safeQuerySelector(comment, '.comments-comment-item__main-content, .comment-text');
-        if (!textEl) return;
-
-        const text = textEl.textContent.trim();
-        if (text.length < 5) return;
-
-        // Check if content already analyzed (deduplication)
-        const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(comment, 'linkedin_comment', text, cachedAnalysis);
-          return;
-        }
-
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
-
-        this.recordContentAnalysis(comment, 'linkedin_comment', text, analysis);
-      });
+      this.analyzeElements(comments, 'linkedin_comment', '.comments-comment-item__main-content, .comment-text', 5);
     } catch (error) {
-      console.error('[AI and Troll Detector] Error analyzing LinkedIn feed:', error);
+      logger.error('Error analyzing LinkedIn feed:', error);
     }
   }
 
@@ -393,36 +382,13 @@ class TrollDetector {
    * Analyze YouTube comments
    */
   async analyzeYouTube() {
-    console.log('[AI and Troll Detector] Analyzing YouTube...');
+    logger.log('Analyzing YouTube...');
 
     try {
       const comments = this.safeQuerySelectorAll(document, 'ytd-comment-renderer');
-
-      comments.forEach((comment) => {
-        if (this.analyzedElements.has(comment)) return;
-        this.analyzedElements.add(comment);
-
-        const textEl = this.safeQuerySelector(comment, '#content-text');
-        if (!textEl) return;
-
-        const text = textEl.textContent.trim();
-        if (text.length < 5) return;
-
-        // Check if content already analyzed (deduplication)
-        const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(comment, 'youtube_comment', text, cachedAnalysis);
-          return;
-        }
-
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
-
-        this.recordContentAnalysis(comment, 'youtube_comment', text, analysis);
-      });
+      this.analyzeElements(comments, 'youtube_comment', '#content-text', 5);
     } catch (error) {
-      console.error('[AI and Troll Detector] Error analyzing YouTube:', error);
+      logger.error('Error analyzing YouTube:', error);
     }
   }
 
@@ -430,113 +396,26 @@ class TrollDetector {
    * Analyze Reddit comments and posts
    */
   async analyzeReddit() {
-    console.log('[AI and Troll Detector] Analyzing Reddit...');
+    logger.log('Analyzing Reddit...');
 
     try {
       // Analyze Reddit posts
       const posts = this.safeQuerySelectorAll(document, '[data-test-id="post-container"], div[data-testid="post-container"], .Post, shreddit-post');
+      logger.analysis(`Found ${posts.length} Reddit posts to analyze`);
 
-      console.log(`[AI and Troll Detector] Found ${posts.length} Reddit posts to analyze`);
-
-      posts.forEach((post) => {
-        if (this.analyzedElements.has(post)) return;
-        this.analyzedElements.add(post);
-
-        // Try multiple selectors for post content (new Reddit and old Reddit)
-        let textEl = this.safeQuerySelector(post, '[data-click-id="text"], [data-adclicklocation="title"], h3, [slot="title"], div[slot="text-body"]');
-
-        // For shreddit-post elements, get the text from multiple possible locations
-        if (!textEl && post.tagName === 'SHREDDIT-POST') {
-          textEl = this.safeQuerySelector(post, 'h1, div[slot="text-body"], p');
-        }
-
-        // Fallback: check for selftext or title in old Reddit
-        if (!textEl) {
-          textEl = this.safeQuerySelector(post, '.title, .md, .usertext-body');
-        }
-
-        if (!textEl) return;
-
-        const text = textEl.textContent.trim();
-        if (text.length < 10) return;
-
-        // Check if content already analyzed (deduplication)
-        const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(post, 'reddit_post', text, cachedAnalysis);
-          return;
-        }
-
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
-
-        this.recordContentAnalysis(post, 'reddit_post', text, analysis);
-      });
+      // Multiple selectors for Reddit post content (new and old Reddit)
+      const postSelectors = '[data-click-id="text"], [data-adclicklocation="title"], h3, [slot="title"], div[slot="text-body"], h1, p, .title, .md, .usertext-body';
+      this.analyzeElements(posts, 'reddit_post', postSelectors, 10);
 
       // Analyze Reddit comments - updated selectors for new Reddit
       const comments = this.safeQuerySelectorAll(document, 'shreddit-comment, [data-testid="comment"], [id^="t1-"], .Comment, .comment, div[id^="t1_"]');
+      logger.analysis(`Found ${comments.length} Reddit comments to analyze`);
 
-      console.log(`[AI and Troll Detector] Found ${comments.length} Reddit comments to analyze`);
-
-      comments.forEach((comment) => {
-        if (this.analyzedElements.has(comment)) return;
-        this.analyzedElements.add(comment);
-
-        // Try multiple selectors for comment content
-        let textEl = this.safeQuerySelector(comment, 'div[slot="comment"], [data-testid="comment-body-text"], p[class*="text"], .md, div[id^="t1_"] .md');
-
-        // For shreddit-comment elements (new Reddit)
-        if (!textEl && comment.tagName === 'SHREDDIT-COMMENT') {
-          textEl = this.safeQuerySelector(comment, 'div[slot="comment"] p, div[slot="comment"], p');
-        }
-
-        // Additional new Reddit selectors
-        if (!textEl) {
-          textEl = this.safeQuerySelector(comment, '[data-click-id="text"], [data-adclicklocation="body"]');
-        }
-
-        // Old Reddit fallback
-        if (!textEl) {
-          textEl = this.safeQuerySelector(comment, '.usertext-body, .md');
-        }
-
-        if (!textEl) {
-          console.log('[AI and Troll Detector] Could not find text element in comment:', comment.tagName, comment.className);
-          return;
-        }
-
-        const text = textEl.textContent.trim();
-        if (text.length < 5) {
-          console.log('[AI and Troll Detector] Comment too short, skipping:', text.length, 'chars');
-          return;
-        }
-
-        // Check if content already analyzed (deduplication)
-        const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(comment, 'reddit_comment', text, cachedAnalysis);
-          return;
-        }
-
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
-
-        this.recordContentAnalysis(comment, 'reddit_comment', text, analysis);
-
-        console.log(`[AI and Troll Detector] Analyzed Reddit comment - Suspicious: ${analysis.isSuspicious}, Score: ${analysis.suspicionScore}`);
-
-        if (this.settings.showIndicators) {
-          if (analysis.isSuspicious) {
-            console.log('[AI and Troll Detector] Added suspicious indicator to comment');
-          } else if (this.settings.showCleanIndicators) {
-            console.log('[AI and Troll Detector] Added clean indicator to comment');
-          }
-        }
-      });
+      // Multiple selectors for Reddit comment content (new and old Reddit)
+      const commentSelectors = 'div[slot="comment"], [data-testid="comment-body-text"], p[class*="text"], .md, div[id^="t1_"] .md, div[slot="comment"] p, [data-click-id="text"], [data-adclicklocation="body"], .usertext-body';
+      this.analyzeElements(comments, 'reddit_comment', commentSelectors, 5);
     } catch (error) {
-      console.error('[AI and Troll Detector] Error analyzing Reddit:', error);
+      logger.error('Error analyzing Reddit:', error);
     }
   }
 
@@ -544,36 +423,44 @@ class TrollDetector {
    * Generic analysis for other websites
    */
   async analyzeGeneric() {
-    console.log('[AI and Troll Detector] Performing generic analysis...');
+    logger.log('Performing generic analysis...');
 
     try {
+      const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+        TEXT_ANALYSIS: { MIN_POST_LENGTH: 10, MAX_POST_LENGTH: 5000 }
+      };
+
       // Look for common comment patterns
       const potentialComments = this.safeQuerySelectorAll(document,
         '.comment, .post, [class*="comment"], [class*="post"], article'
       );
 
-      potentialComments.forEach((element) => {
+      // Filter by text length in the generic case
+      const validComments = Array.from(potentialComments).filter(el => {
+        const textLength = el.textContent.trim().length;
+        return textLength >= config.TEXT_ANALYSIS.MIN_POST_LENGTH &&
+               textLength <= config.TEXT_ANALYSIS.MAX_POST_LENGTH;
+      });
+
+      // Use element itself as text source for generic content
+      validComments.forEach((element) => {
         if (this.analyzedElements.has(element)) return;
         this.analyzedElements.add(element);
 
         const text = element.textContent.trim();
-        if (text.length < 10 || text.length > 5000) return;
-
-        // Check if content already analyzed (deduplication)
         const contentHash = this.hashContent(text);
-        if (this.analyzedContent.has(contentHash)) {
-          const cachedAnalysis = this.analyzedContent.get(contentHash);
-          this.recordContentAnalysis(element, 'generic_comment', text, cachedAnalysis);
-          return;
-        }
+        const analysis = this.analyzedContent.has(contentHash)
+          ? this.analyzedContent.get(contentHash)
+          : this.analyzer.analyzeContent(text);
 
-        const analysis = this.analyzer.analyzeContent(text);
-        this.analyzedContent.set(contentHash, analysis);
+        if (!this.analyzedContent.has(contentHash)) {
+          this.analyzedContent.set(contentHash, analysis);
+        }
 
         this.recordContentAnalysis(element, 'generic_comment', text, analysis);
       });
     } catch (error) {
-      console.error('[AI and Troll Detector] Error in generic analysis:', error);
+      logger.error('Error in generic analysis:', error);
     }
   }
 
@@ -624,7 +511,7 @@ class TrollDetector {
       element.style.position = 'relative';
       element.insertBefore(indicator, element.firstChild);
     } catch (error) {
-      console.error('[AI and Troll Detector] Error adding comment indicator:', error);
+      logger.error('Error adding comment indicator:', error);
     }
   }
 
@@ -657,7 +544,7 @@ class TrollDetector {
       element.style.position = 'relative';
       element.insertBefore(indicator, element.firstChild);
     } catch (error) {
-      console.error('[AI and Troll Detector] Error adding clean indicator:', error);
+      logger.error('Error adding clean indicator:', error);
     }
   }
 
@@ -772,30 +659,91 @@ class TrollDetector {
   }
 
   /**
-   * Observe DOM for dynamically loaded content
+   * Check if a node contains relevant content for analysis
+   */
+  isRelevantContent(node) {
+    if (!node || node.nodeType !== 1) return false; // Element nodes only
+
+    const selectors = {
+      linkedin: '.feed-shared-update-v2, .comments-comment-item, .occludable-update, .comment-item',
+      youtube: 'ytd-comment-renderer, ytd-comment-thread-renderer',
+      reddit: 'shreddit-comment, shreddit-post, [data-testid="comment"], [data-test-id="post-container"]',
+      generic: '.comment, .post, [class*="comment"], [class*="post"]'
+    };
+
+    const selector = selectors[this.platformDetector.platform] || selectors.generic;
+    const selectorList = selector.split(', ');
+
+    return selectorList.some(sel => {
+      try {
+        return node.matches && node.matches(sel);
+      } catch (e) {
+        return false;
+      }
+    });
+  }
+
+  /**
+   * Observe DOM for dynamically loaded content with optimized filtering
    */
   observeDOM() {
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      PERFORMANCE: { MUTATION_DEBOUNCE_MS: 2000, MAX_ELEMENT_COUNT: 5000 }
+    };
+
     const observer = new MutationObserver((mutations) => {
-      // Debounce analysis with longer timeout to reduce CPU usage
+      // Filter for relevant mutations only
+      const hasRelevantChanges = mutations.some(mutation => {
+        return Array.from(mutation.addedNodes).some(node => {
+          return this.isRelevantContent(node) ||
+                 (node.querySelector && this.hasRelevantDescendants(node));
+        });
+      });
+
+      if (!hasRelevantChanges) return;
+
+      // Debounce analysis to reduce CPU usage
       clearTimeout(this.analysisTimeout);
       this.analysisTimeout = setTimeout(() => {
         if (this.settings.autoAnalyze && !this.isAnalyzing) {
           // Check if page has too many elements (performance protection)
           const elementCount = document.querySelectorAll('*').length;
-          if (elementCount > 5000) {
-            console.log('[AI and Troll Detector] Page too large, skipping auto-analysis. Use manual analysis.');
+          if (elementCount > config.PERFORMANCE.MAX_ELEMENT_COUNT) {
+            logger.warn('Page too large, skipping auto-analysis. Use manual analysis.');
             return;
           }
           this.startAnalysis();
         }
-      }, 3000); // Increased from 1000ms to 3000ms to reduce frequency
+      }, config.PERFORMANCE.MUTATION_DEBOUNCE_MS);
     });
 
-    // Observe with more targeted settings
+    // Observe with targeted settings
     observer.observe(document.body, {
       childList: true,
       subtree: true
     });
+  }
+
+  /**
+   * Check if node has relevant descendants
+   */
+  hasRelevantDescendants(node) {
+    if (!node.querySelector) return false;
+
+    const selectors = {
+      linkedin: '.feed-shared-update-v2, .comments-comment-item',
+      youtube: 'ytd-comment-renderer',
+      reddit: 'shreddit-comment, shreddit-post',
+      generic: '.comment, .post'
+    };
+
+    const selector = selectors[this.platformDetector.platform] || selectors.generic;
+
+    try {
+      return node.querySelector(selector) !== null;
+    } catch (e) {
+      return false;
+    }
   }
 }
 

@@ -3,10 +3,13 @@
  * Handles extension lifecycle and message passing
  */
 
+// Import config and logger for background script
+self.importScripts('config.js', 'logger.js');
+
 // Installation and updates
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[AI and Troll Detector] Extension installed');
+    logger.info('Extension installed');
 
     // Set default settings
     chrome.storage.sync.set({
@@ -18,20 +21,20 @@ chrome.runtime.onInstalled.addListener((details) => {
     // Open welcome page (optional)
     // chrome.tabs.create({ url: 'welcome.html' });
   } else if (details.reason === 'update') {
-    console.log('[AI and Troll Detector] Extension updated');
+    logger.info('Extension updated');
   }
 });
 
 // Handle messages from content scripts or popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.action) {
-    case 'analyzeComplete':
+    case 'analysisComplete':
       // Update badge with suspicious count
       if (request.stats && request.stats.suspiciousCount) {
         updateBadge(sender.tab.id, request.stats.suspiciousCount);
       }
       sendResponse({ success: true });
-      break;
+      return false; // Synchronous response
 
     case 'getSettings':
       chrome.storage.sync.get(['autoAnalyze', 'showIndicators', 'flagThreshold'], (result) => {
@@ -41,6 +44,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     default:
       sendResponse({ error: 'Unknown action' });
+      return false; // Synchronous response
   }
 });
 
@@ -80,7 +84,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // Keep service worker alive (Manifest V3 requirement)
 chrome.runtime.onConnect.addListener((port) => {
-  console.log('[AI and Troll Detector] Port connected');
+  logger.log('Port connected');
 });
 
-console.log('[AI and Troll Detector] Background service worker loaded');
+logger.info('Background service worker loaded');

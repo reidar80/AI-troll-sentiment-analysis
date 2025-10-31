@@ -8,6 +8,7 @@ class TextAnalysisUtils {
   /**
    * Calculate Levenshtein distance between two strings
    * Returns the minimum number of edits needed to transform s1 into s2
+   * Space-optimized version: O(min(n,m)) space instead of O(n*m)
    */
   static levenshteinDistance(s1, s2) {
     // Input validation
@@ -15,36 +16,33 @@ class TextAnalysisUtils {
       return 0;
     }
 
-    const len1 = s1.length;
-    const len2 = s2.length;
+    // Optimization: limit string length to prevent memory issues
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : { PERFORMANCE: { MAX_TEXT_LENGTH: 1000 } };
+    const maxLength = config.PERFORMANCE.MAX_TEXT_LENGTH;
+    s1 = s1.substring(0, maxLength);
+    s2 = s2.substring(0, maxLength);
 
     // Handle edge cases
-    if (len1 === 0) return len2;
-    if (len2 === 0) return len1;
+    if (s1.length === 0) return s2.length;
+    if (s2.length === 0) return s1.length;
 
-    const matrix = [];
+    // Use single array instead of matrix (space optimization)
+    let prev = Array.from({length: s2.length + 1}, (_, i) => i);
 
-    // Initialize matrix
-    for (let i = 0; i <= len1; i++) {
-      matrix[i] = [i];
-    }
-    for (let j = 0; j <= len2; j++) {
-      matrix[0][j] = j;
-    }
-
-    // Fill matrix
-    for (let i = 1; i <= len1; i++) {
-      for (let j = 1; j <= len2; j++) {
-        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1,      // deletion
-          matrix[i][j - 1] + 1,      // insertion
-          matrix[i - 1][j - 1] + cost // substitution
+    for (let i = 0; i < s1.length; i++) {
+      let curr = [i + 1];
+      for (let j = 0; j < s2.length; j++) {
+        const cost = s1[i] === s2[j] ? 0 : 1;
+        curr[j + 1] = Math.min(
+          curr[j] + 1,      // insertion
+          prev[j + 1] + 1,  // deletion
+          prev[j] + cost    // substitution
         );
       }
+      prev = curr;
     }
 
-    return matrix[len1][len2];
+    return prev[s2.length];
   }
 
   /**
@@ -130,11 +128,19 @@ class TextAnalysisUtils {
   }
 
   /**
-   * Detect language (simple pattern matching)
+   * Detect language with confidence scoring
+   * Improved to handle short texts and avoid false positives
    */
   static detectLanguage(text) {
-    const lowerText = text.toLowerCase();
     const tokens = this.tokenize(text);
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      THRESHOLDS: { MIN_TOKENS_FOR_LANG_DETECT: 10, LANGUAGE_CONFIDENCE: 0.3 }
+    };
+
+    // Require minimum tokens for reliable detection
+    if (tokens.length < config.THRESHOLDS.MIN_TOKENS_FOR_LANG_DETECT) {
+      return 'en'; // Default to English for short texts
+    }
 
     const patterns = {
       no: ['og', 'er', 'jeg', 'det', 'ikke'],
@@ -148,18 +154,21 @@ class TextAnalysisUtils {
       pl: ['i', 'w', 'nie', 'na', 'jest']
     };
 
-    let maxScore = 0;
-    let detectedLang = 'en';
-
+    // Calculate confidence scores for each language
+    const scores = {};
     for (const [lang, words] of Object.entries(patterns)) {
-      const score = words.filter(w => tokens.includes(w)).length;
-      if (score > maxScore) {
-        maxScore = score;
-        detectedLang = lang;
-      }
+      const matches = words.filter(w => tokens.includes(w));
+      const uniqueMatches = new Set(matches).size;
+      // Score based on unique matches (prevents common words from dominating)
+      scores[lang] = uniqueMatches / words.length;
     }
 
-    return maxScore > 0 ? detectedLang : 'en';
+    // Find language with highest confidence
+    const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const [bestLang, confidence] = entries[0] || ['en', 0];
+
+    // Only use detected language if confidence is above threshold
+    return confidence > config.THRESHOLDS.LANGUAGE_CONFIDENCE ? bestLang : 'en';
   }
 
   /**
@@ -286,17 +295,20 @@ class TextAnalysisUtils {
     if (sentences.length < 2) return { isRepetitive: false, score: 0 };
 
     // Performance optimization: limit comparisons for large texts
-    const MAX_SENTENCES_TO_COMPARE = 50;
-    const sentencesToAnalyze = sentences.slice(0, MAX_SENTENCES_TO_COMPARE);
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : { PERFORMANCE: { MAX_SENTENCES_TO_COMPARE: 50 } };
+    const sentencesToAnalyze = sentences.slice(0, config.PERFORMANCE.MAX_SENTENCES_TO_COMPARE);
 
     let totalSimilarity = 0;
     let comparisons = 0;
 
     // Further optimization: sample comparisons for very large texts
-    if (sentencesToAnalyze.length > 20) {
-      // For large texts, only compare each sentence with next 3 sentences
+    const threshold = config.PERFORMANCE?.LARGE_DATASET_THRESHOLD || 20;
+    const windowSize = config.PERFORMANCE?.COMPARISON_WINDOW_SMALL || 4;
+
+    if (sentencesToAnalyze.length > threshold) {
+      // For large texts, only compare each sentence with next few sentences
       for (let i = 0; i < sentencesToAnalyze.length - 1; i++) {
-        const maxJ = Math.min(i + 4, sentencesToAnalyze.length);
+        const maxJ = Math.min(i + windowSize, sentencesToAnalyze.length);
         for (let j = i + 1; j < maxJ; j++) {
           const similarity = this.cosineSimilarity(sentencesToAnalyze[i], sentencesToAnalyze[j]);
           totalSimilarity += similarity;
@@ -350,7 +362,8 @@ class TextAnalysisUtils {
       const variance = lengths.reduce((sum, len) => sum + Math.pow(len - avgLength, 2), 0) / lengths.length;
 
       // Low variance suggests AI (more uniform)
-      indicators.averageSentenceLength = variance < 20 ? 0.7 : 0.3;
+      const config = typeof CONFIG !== 'undefined' ? CONFIG : { THRESHOLDS: { SENTENCE_VARIANCE: 20 } };
+      indicators.averageSentenceLength = variance < config.THRESHOLDS.SENTENCE_VARIANCE ? 0.7 : 0.3;
     }
 
     // Check for overly formal language patterns
@@ -360,11 +373,23 @@ class TextAnalysisUtils {
     indicators.formalityScore = Math.min(formalCount / tokens.length * 20, 1);
 
     // Calculate overall AI likelihood score
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      WEIGHTS: {
+        AI_DETECTION: {
+          BUZZWORD_DENSITY: 0.3,
+          REPETITIVENESS: 0.3,
+          SENTENCE_LENGTH: 0.2,
+          FORMALITY_SCORE: 0.2
+        }
+      },
+      THRESHOLDS: { SENTENCE_VARIANCE: 20 }
+    };
+
     const weights = {
-      buzzwordDensity: 0.3,
-      repetitiveness: 0.3,
-      averageSentenceLength: 0.2,
-      formalityScore: 0.2
+      buzzwordDensity: config.WEIGHTS.AI_DETECTION.BUZZWORD_DENSITY,
+      repetitiveness: config.WEIGHTS.AI_DETECTION.REPETITIVENESS,
+      averageSentenceLength: config.WEIGHTS.AI_DETECTION.SENTENCE_LENGTH,
+      formalityScore: config.WEIGHTS.AI_DETECTION.FORMALITY_SCORE
     };
 
     const aiScore = Object.keys(indicators).reduce((score, key) => {
@@ -393,14 +418,20 @@ class TextAnalysisUtils {
     const suspicious = [];
 
     // Performance optimization: limit comparisons for large comment sets
-    const MAX_COMMENTS_TO_COMPARE = 100;
-    const commentsToAnalyze = comments.slice(0, MAX_COMMENTS_TO_COMPARE);
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      PERFORMANCE: {
+        MAX_COMMENTS_TO_COMPARE: 100,
+        COORDINATED_COMPARE_WINDOW: 11,
+        LARGE_DATASET_THRESHOLD: 50
+      }
+    };
+    const commentsToAnalyze = comments.slice(0, config.PERFORMANCE.MAX_COMMENTS_TO_COMPARE);
 
     // Further optimization: for large sets, sample comparisons
-    if (commentsToAnalyze.length > 50) {
-      // For large sets, only compare each comment with next 10 comments
+    if (commentsToAnalyze.length > config.PERFORMANCE.LARGE_DATASET_THRESHOLD) {
+      // For large sets, only compare each comment with next few comments
       for (let i = 0; i < commentsToAnalyze.length - 1; i++) {
-        const maxJ = Math.min(i + 11, commentsToAnalyze.length);
+        const maxJ = Math.min(i + config.PERFORMANCE.COORDINATED_COMPARE_WINDOW, commentsToAnalyze.length);
         for (let j = i + 1; j < maxJ; j++) {
           if (!commentsToAnalyze[i].text || !commentsToAnalyze[j].text) continue;
 
@@ -492,10 +523,12 @@ class TextAnalysisUtils {
 
     const matches = spamPatterns.filter(pattern => pattern.test(text));
 
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : { THRESHOLDS: { SPAM_CONFIDENCE: 0.3 } };
+
     return {
       isSpam: matches.length > 0,
       matchCount: matches.length,
-      confidence: Math.min(matches.length * 0.3, 1)
+      confidence: Math.min(matches.length * config.THRESHOLDS.SPAM_CONFIDENCE, 1)
     };
   }
 }

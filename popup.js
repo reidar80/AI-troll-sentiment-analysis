@@ -26,8 +26,8 @@ class PopupController {
     // Setup event listeners
     this.setupEventListeners();
 
-    // Listen for analysis completion messages
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Store reference to message listener for cleanup
+    this.messageListener = (request, sender, sendResponse) => {
       if (request.action === 'analysisComplete') {
         // Reload results and update UI
         this.loadResults().then(() => {
@@ -41,20 +41,43 @@ class PopupController {
           }
         });
       }
-    });
+    };
 
-    // Listen for storage changes
-    chrome.storage.onChanged.addListener((changes, namespace) => {
+    // Listen for analysis completion messages
+    chrome.runtime.onMessage.addListener(this.messageListener);
+
+    // Store reference to storage listener for cleanup
+    this.storageListener = (changes, namespace) => {
       if (namespace === 'local' && changes.latestAnalysis) {
         // Reload results and update UI
         this.loadResults().then(() => {
           this.updateUI();
         });
       }
-    });
+    };
+
+    // Listen for storage changes
+    chrome.storage.onChanged.addListener(this.storageListener);
 
     // Update UI
     this.updateUI();
+
+    // Cleanup on window unload
+    window.addEventListener('unload', () => this.destroy());
+  }
+
+  /**
+   * Cleanup listeners to prevent memory leaks
+   */
+  destroy() {
+    if (this.messageListener) {
+      chrome.runtime.onMessage.removeListener(this.messageListener);
+      this.messageListener = null;
+    }
+    if (this.storageListener) {
+      chrome.storage.onChanged.removeListener(this.storageListener);
+      this.storageListener = null;
+    }
   }
 
   /**
@@ -176,7 +199,7 @@ class PopupController {
 
     // Set a timeout as a safety fallback
     const timeoutId = setTimeout(() => {
-      console.log('[Popup] Analysis timeout - restoring button state');
+      logger.warn('Analysis timeout - restoring button state');
       analyzeBtn.textContent = '🔍 Analyze Page Now';
       analyzeBtn.disabled = false;
     }, 30000); // 30 second timeout
@@ -190,7 +213,7 @@ class PopupController {
           // Analysis completion will be handled by the onMessage listener
           // which updates UI and restores button state
         } catch (error) {
-          console.error('[Popup] Error triggering analysis:', error);
+          logger.error('Error triggering analysis:', error);
           clearTimeout(timeoutId);
           analyzeBtn.textContent = '🔍 Analyze Page Now';
           analyzeBtn.disabled = false;
