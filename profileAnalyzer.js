@@ -8,14 +8,41 @@ class ProfileAnalyzer {
     this.sentimentAnalyzer = new SentimentAnalyzer();
     this.utils = TextAnalysisUtils;
 
-    // Thresholds for detection
+    // Load thresholds from centralized config or use defaults
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : {
+      THRESHOLDS: {
+        BUZZWORD_DENSITY: 0.15,
+        AI_PATTERN_SCORE: 0.6,
+        REPETITION_SCORE: 0.4,
+        EXTREME_SENTIMENT_RATIO: 0.5,
+        POSTING_SIMILARITY: 0.7,
+        MIN_POSTS_FOR_ANALYSIS: 3
+      }
+    };
+
     this.thresholds = {
-      buzzwordDensity: 0.15,        // 15% buzzwords is suspicious
-      aiPatternScore: 0.6,           // 60% AI likelihood
-      repetitionScore: 0.4,          // 40% similarity between posts
-      extremeSentimentRatio: 0.5,    // 50% posts with extreme sentiment
-      postingSimilarity: 0.7,        // 70% similarity between posts
-      minPostsForAnalysis: 3         // Need at least 3 posts
+      buzzwordDensity: config.THRESHOLDS.BUZZWORD_DENSITY,
+      aiPatternScore: config.THRESHOLDS.AI_PATTERN_SCORE,
+      repetitionScore: config.THRESHOLDS.REPETITION_SCORE,
+      extremeSentimentRatio: config.THRESHOLDS.EXTREME_SENTIMENT_RATIO,
+      postingSimilarity: config.THRESHOLDS.POSTING_SIMILARITY,
+      minPostsForAnalysis: config.THRESHOLDS.MIN_POSTS_FOR_ANALYSIS
+    };
+  }
+
+  /**
+   * Get default analysis result for error cases
+   */
+  getDefaultAnalysisResult(reason) {
+    return {
+      overallScore: 0,
+      isLikelySuspicious: false,
+      isTroll: false,
+      isAIGenerated: false,
+      confidence: 0,
+      flags: [reason],
+      details: {},
+      classification: 'Unable to Analyze'
     };
   }
 
@@ -25,7 +52,12 @@ class ProfileAnalyzer {
    * @returns {Object} Analysis results with scores and flags
    */
   analyzeProfile(profileData) {
-    const {
+    // Input validation
+    if (!profileData || typeof profileData !== 'object') {
+      return this.getDefaultAnalysisResult('Invalid profile data');
+    }
+
+    let {
       bio = '',
       posts = [],
       headline = '',
@@ -33,6 +65,14 @@ class ProfileAnalyzer {
       username = '',
       metadata = {}
     } = profileData;
+
+    // Validate and sanitize posts array
+    if (!Array.isArray(posts)) {
+      if (typeof logger !== 'undefined') {
+        logger.warn('posts is not an array, converting');
+      }
+      posts = [];
+    }
 
     const results = {
       overallScore: 0,
@@ -190,18 +230,21 @@ class ProfileAnalyzer {
     }
 
     // Performance optimization: limit posts analyzed
-    const MAX_POSTS_TO_ANALYZE = 50;
-    const textsToAnalyze = validTexts.slice(0, MAX_POSTS_TO_ANALYZE);
+    const config = typeof CONFIG !== 'undefined' ? CONFIG : { PERFORMANCE: { MAX_POSTS_TO_ANALYZE: 50 } };
+    const textsToAnalyze = validTexts.slice(0, config.PERFORMANCE.MAX_POSTS_TO_ANALYZE);
 
     // Check similarity between posts
     let totalSimilarity = 0;
     let comparisons = 0;
 
     // Optimize O(n²) comparison
-    if (textsToAnalyze.length > 20) {
-      // For many posts, only compare each with next 5 posts
+    const threshold = config.PERFORMANCE?.LARGE_DATASET_THRESHOLD || 20;
+    const windowSize = config.PERFORMANCE?.COMPARISON_WINDOW_LARGE || 6;
+
+    if (textsToAnalyze.length > threshold) {
+      // For many posts, only compare each with next few posts
       for (let i = 0; i < textsToAnalyze.length - 1; i++) {
-        const maxJ = Math.min(i + 6, textsToAnalyze.length);
+        const maxJ = Math.min(i + windowSize, textsToAnalyze.length);
         for (let j = i + 1; j < maxJ; j++) {
           const similarity = this.utils.cosineSimilarity(textsToAnalyze[i], textsToAnalyze[j]);
           totalSimilarity += similarity;
